@@ -1,1 +1,1 @@
-import{RouterProvider}from'react-router-dom';import{router}from'./routes';import{CartProvider}from'../components/shop/CartContext';export default function App(){return <CartProvider><RouterProvider router={router}/></CartProvider>}
+﻿import{RouterProvider}from'react-router-dom';import{router}from'./routes';import{CartProvider}from'../components/shop/CartContext';import{AuthProvider}from'../contexts/AuthContext';export default function App(){return <AuthProvider><CartProvider><RouterProvider router={router}/></CartProvider></AuthProvider>}

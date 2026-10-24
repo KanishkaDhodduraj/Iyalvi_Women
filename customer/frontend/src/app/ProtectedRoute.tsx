@@ -1,0 +1,2 @@
+﻿import{useLocation}from'react-router-dom';import{useAuth}from'../contexts/AuthContext';import{AuthDialog}from'../components/auth/AuthDialog';import{authRedirect}from'../services/AuthService';import type{ReactNode}from'react';
+export function ProtectedRoute({children}:{children:ReactNode}){const{user}=useAuth(),location=useLocation(),redirect=authRedirect(`${location.pathname}${location.search}${location.hash}`,!!user);return redirect?<AuthDialog returnTo={redirect.returnTo}/>:children}
