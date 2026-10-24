@@ -11,3 +11,6 @@ export function pairBannerFiles(files:BannerFiles):BannerPair[]{
  return [...pairs.values()].sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
 }
 export function selectBannerSource(pair:BannerPair|undefined,isMobile:boolean):string|undefined{return pair?(isMobile?(pair.mobile||pair.desktop):(pair.desktop||pair.mobile)):undefined}
+
+export function isMobileViewport(width:number){return width<768}
+export function selectBannerForWidth(pair:BannerPair|undefined,width:number){return selectBannerSource(pair,isMobileViewport(width))}
