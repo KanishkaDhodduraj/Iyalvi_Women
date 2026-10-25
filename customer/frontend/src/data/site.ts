@@ -1,2 +1,2 @@
-// Add the official Iyalvi Instagram profile URL here when it is ready.
+// Keep empty until the official Iyalvi Instagram profile URL is confirmed.
 export const instagramProfileUrl = '';

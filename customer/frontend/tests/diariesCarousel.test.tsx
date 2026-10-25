@@ -4,9 +4,11 @@ import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IyalviDiaries } from '../src/components/home/IyalviDiaries';
+import { createFlyingHeartBurst, limitLiveHearts } from '../src/components/home/IyalviDiaries';
 import { DIARY_OFFSETS, getVisibleDiaryPositions, wrapDiaryIndex } from '../src/data/diaries';
 
-vi.mock('../src/data/site', () => ({ instagramProfileUrl: 'https://instagram.com/iyalvi-profile' }));
+const siteMock = vi.hoisted(() => ({ profileUrl: 'https://instagram.com/iyalvi-profile' }));
+vi.mock('../src/data/site', () => ({ get instagramProfileUrl() { return siteMock.profileUrl; } }));
 vi.mock('../src/data/diaries', async importOriginal => {
   const actual = await importOriginal<typeof import('../src/data/diaries')>();
   return { ...actual, diaries: actual.diaries.map((diary, index) => index === 0 ? { ...diary, likes: 1574, comments: 8, postedLabel: '2 DAYS AGO', instagramUrl: 'https://instagram.com/p/iyalvi-look' } : diary) };
@@ -45,6 +47,7 @@ describe('Iyalvi Diaries interaction', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    siteMock.profileUrl = 'https://instagram.com/iyalvi-profile';
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('prefers-reduced-motion') ? false : false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }));
     clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
@@ -145,16 +148,61 @@ describe('Iyalvi Diaries interaction', () => {
     expect(centreElement('.diary-likes')).toBeNull();
   });
 
-  it('opens the profile from Follow and briefly displays Following', async () => {
+  it('renders Follow on every card and toggles it while opening the configured profile', async () => {
     await mount();
     const open = vi.spyOn(window, 'open').mockImplementation(() => null);
-    const follow = centreElement<HTMLAnchorElement>('.diary-follow');
+    expect(host.querySelectorAll('.diary-follow').length).toBeGreaterThanOrEqual(5);
+    const follow = centreElement<HTMLButtonElement>('.diary-follow');
     act(() => follow.click());
     expect(open).toHaveBeenCalledWith('https://instagram.com/iyalvi-profile', '_blank', 'noopener,noreferrer');
-    expect(follow.getAttribute('rel')).toBe('noopener noreferrer');
-    expect(follow.textContent).toBe('Following');
-    act(() => vi.advanceTimersByTime(1600));
+    expect(follow.getAttribute('aria-pressed')).toBe('true');
+    expect(follow.textContent).toContain('Following');
+    act(() => follow.click());
     expect(centreElement('.diary-follow')?.textContent).toBe('Follow');
+  });
+
+  it('keeps Follow available and toggles locally when the profile URL is empty', async () => {
+    siteMock.profileUrl = '';
+    await mount();
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const follow = centreElement<HTMLButtonElement>('.diary-follow');
+    expect(follow).not.toBeNull();
+    act(() => follow.click());
+    expect(follow.textContent).toContain('Following');
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('creates a bounded heart burst and cleans flying heart nodes after animation', async () => {
+    const burst = createFlyingHeartBurst(10, 20, 1, () => 0.5);
+    expect(burst.length).toBeGreaterThanOrEqual(8);
+    expect(burst.length).toBeLessThanOrEqual(12);
+    expect(limitLiveHearts([], Array.from({ length: 50 }, (_, i) => ({ ...burst[0], id: i })))).toHaveLength(40);
+    await mount();
+    act(() => centreElement<HTMLButtonElement>('.diary-like-button').click());
+    const flying = document.body.querySelectorAll('.diary-flying-heart');
+    expect(flying.length).toBeGreaterThanOrEqual(8);
+    expect(flying.length).toBeLessThanOrEqual(12);
+    act(() => vi.advanceTimersByTime(2000));
+    expect(document.body.querySelectorAll('.diary-flying-heart')).toHaveLength(0);
+  });
+
+  it('double clicking a side photo centres and likes it without toggling off', async () => {
+    await mount();
+    const side = host.querySelector<HTMLElement>('.diary-position-wrap[data-offset="1"] .diary-photo-frame')!;
+    act(() => side.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, clientX: 20, clientY: 30 })));
+    expect(centrePhoto()).not.toBeNull();
+    const like = centreElement<HTMLButtonElement>('.diary-like-button');
+    expect(like.getAttribute('aria-pressed')).toBe('true');
+    act(() => side.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, clientX: 20, clientY: 30 })));
+    expect(centreElement('.diary-like-button')?.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('does not create flying hearts when reduced motion is enabled', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('prefers-reduced-motion'), media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }));
+    await mount();
+    act(() => centreElement<HTMLButtonElement>('.diary-like-button').click());
+    expect(centreElement('.diary-like-button')?.getAttribute('aria-pressed')).toBe('true');
+    expect(document.body.querySelector('.diary-hearts-layer')).toBeNull();
   });
 
   it('closes the centre card menu with Escape', async () => {
