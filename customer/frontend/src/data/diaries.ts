@@ -1,2 +1,14 @@
-﻿export type Diary={name:string;caption:string;isDemoName:true;focus?:string};
-export const diaries:Record<number,Diary>={1:{name:'Ilakkiya Senthil',caption:'A little zari and a lot of joy for a day worth remembering.',isDemoName:true},2:{name:'Madhumitha Raj',caption:'Soft cotton, favourite jhumkas, and a slow Sunday.',isDemoName:true},3:{name:'Yazhini Balan',caption:'Found my festive colour in this beautiful Iyalvi drape.',isDemoName:true},4:{name:'Kayalvizhi Murugan',caption:'A kurti made for running errands and feeling lovely.',isDemoName:true},5:{name:'Sowmiya Arul',caption:'Wearing a little tradition into the everyday.',isDemoName:true}};
+﻿export type Diary={displayName:string;caption:string;shopTo:'/sarees'|'/kurtis';focus?:string};
+export const diaries:Diary[]=[
+  {displayName:'Ilakkiya Senthil',caption:'A little colour made an ordinary afternoon feel special.',shopTo:'/sarees'},
+  {displayName:'Madhumitha Raj',caption:'Soft cotton and a quiet moment to feel like myself.',shopTo:'/kurtis'},
+  {displayName:'Yazhini Balan',caption:'This joyful drape came along for a day full of laughter.',shopTo:'/sarees'},
+  {displayName:'Kayalvizhi Murugan',caption:'A favourite kurti for all the little things in my day.',shopTo:'/kurtis'},
+  {displayName:'Sowmiya Arul',caption:'A touch of tradition made this gathering feel warmer.',shopTo:'/sarees'},
+];
+
+export const DIARY_OFFSETS=[-2,-1,0,1,2] as const;
+export const DIARY_MOBILE_OFFSETS=[-1,0,1] as const;
+
+export function wrapDiaryIndex(index:number,count:number):number{return count>0?((index%count)+count)%count:0}
+export function getVisibleDiaryPositions(activeIndex:number,count:number,offsets:readonly number[]=DIARY_OFFSETS){return count<1?[]:offsets.map(offset=>({offset,index:wrapDiaryIndex(activeIndex+offset,count)}))}

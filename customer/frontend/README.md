@@ -27,7 +27,7 @@ Banner files are discovered from `src/assets/banners/{home,sarees,kurtis}`. Pair
 
 ## Content to replace before launch
 
-- Diary customer names and story captions marked with the internal `isDemoName` flag.
+- The five diary names and captions are temporary examples. Replace them with real customer stories only after each customer has given consent, before launch.
 - Review names, review text, and the current review portraits.
 - Product names, descriptions, prices, availability, and catalogue photos.
 - Store contact details in the footer.
