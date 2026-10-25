@@ -6,6 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IyalviDiaries } from '../src/components/home/IyalviDiaries';
 import { DIARY_OFFSETS, getVisibleDiaryPositions, wrapDiaryIndex } from '../src/data/diaries';
 
+vi.mock('../src/data/site', () => ({ instagramProfileUrl: 'https://instagram.com/iyalvi-profile' }));
+vi.mock('../src/data/diaries', async importOriginal => {
+  const actual = await importOriginal<typeof import('../src/data/diaries')>();
+  return { ...actual, diaries: actual.diaries.map((diary, index) => index === 0 ? { ...diary, likes: 1574, comments: 8, postedLabel: '2 DAYS AGO', instagramUrl: 'https://instagram.com/p/iyalvi-look' } : diary) };
+});
+
 function LocationProbe() {
   const location = useLocation();
   return <output data-testid="location">{location.pathname}</output>;
@@ -35,11 +41,13 @@ describe('Iyalvi Diaries carousel positions', () => {
 describe('Iyalvi Diaries interaction', () => {
   let root: Root;
   let host: HTMLDivElement;
+  let clipboardDescriptor: PropertyDescriptor | undefined;
 
   beforeEach(() => {
     vi.useFakeTimers();
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('prefers-reduced-motion') ? false : false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }));
+    clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
@@ -49,7 +57,10 @@ describe('Iyalvi Diaries interaction', () => {
     act(() => root.unmount());
     host.remove();
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
+    if (clipboardDescriptor) Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+    else Reflect.deleteProperty(navigator, 'clipboard');
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
@@ -59,6 +70,10 @@ describe('Iyalvi Diaries interaction', () => {
 
   function centrePhoto() {
     return host.querySelector<HTMLImageElement>('.diary-position-wrap[data-offset="0"] .diary-card-photo')?.getAttribute('src');
+  }
+
+  function centreElement<T extends Element>(selector: string) {
+    return host.querySelector<T>('.diary-desktop-stage .diary-position-wrap[data-offset="0"] ' + selector)!;
   }
 
   it('pauses on hover and resumes after three quiet seconds', async () => {
@@ -104,5 +119,73 @@ describe('Iyalvi Diaries interaction', () => {
     expect(centrePhoto()).toBe(afterRightArrow);
     act(() => host.querySelector<HTMLElement>('.diary-position-wrap[data-offset="0"] .diary-card-position')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     expect(host.querySelector('[data-testid="location"]')?.textContent).toMatch(/^\/(sarees|kurtis)$/);
+  });
+
+  it('toggles the heart and increments only an existing likes number', async () => {
+    await mount();
+    const like = centreElement<HTMLButtonElement>('.diary-like-button');
+    expect(centreElement('.diary-likes')?.textContent).toBe('1,574 likes');
+    act(() => like.click());
+    expect(like.getAttribute('aria-pressed')).toBe('true');
+    expect(centreElement('.diary-likes')?.textContent).toBe('1,575 likes');
+    act(() => like.click());
+    expect(like.getAttribute('aria-pressed')).toBe('false');
+    expect(centreElement('.diary-likes')?.textContent).toBe('1,574 likes');
+  });
+
+  it('hides empty engagement lines and keeps likes hidden when an unnumbered post is liked', async () => {
+    await mount();
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="Next diary story"]')!.click());
+    expect(centreElement('.diary-likes')).toBeNull();
+    expect(centreElement('.diary-view-comments')).toBeNull();
+    expect(centreElement('.diary-posted-label')).toBeNull();
+    const like = centreElement<HTMLButtonElement>('.diary-like-button');
+    act(() => like.click());
+    expect(like.getAttribute('aria-pressed')).toBe('true');
+    expect(centreElement('.diary-likes')).toBeNull();
+  });
+
+  it('opens the profile from Follow and briefly displays Following', async () => {
+    await mount();
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const follow = centreElement<HTMLAnchorElement>('.diary-follow');
+    act(() => follow.click());
+    expect(open).toHaveBeenCalledWith('https://instagram.com/iyalvi-profile', '_blank', 'noopener,noreferrer');
+    expect(follow.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(follow.textContent).toBe('Following');
+    act(() => vi.advanceTimersByTime(1600));
+    expect(centreElement('.diary-follow')?.textContent).toBe('Follow');
+  });
+
+  it('closes the centre card menu with Escape', async () => {
+    await mount();
+    act(() => centreElement<HTMLButtonElement>('[aria-label="More post options"]').click());
+    const menu = centreElement('[role="menu"]');
+    expect(menu).not.toBeNull();
+    act(() => menu!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    expect(centreElement('[role="menu"]')).toBeNull();
+  });
+
+  it('opens post comments when available and falls back to the brand profile', async () => {
+    await mount();
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const allComments = centreElement<HTMLAnchorElement>('.diary-view-comments');
+    expect(allComments.getAttribute('href')).toBe('https://instagram.com/p/iyalvi-look');
+    expect(allComments.getAttribute('rel')).toBe('noopener noreferrer');
+    act(() => centreElement<HTMLButtonElement>('[aria-label="Open comments"]').click());
+    expect(open).toHaveBeenCalledWith('https://instagram.com/p/iyalvi-look', '_blank', 'noopener,noreferrer');
+
+    act(() => host.querySelector<HTMLButtonElement>('[aria-label="Next diary story"]')!.click());
+    act(() => centreElement<HTMLButtonElement>('[aria-label="Open comments"]').click());
+    expect(open).toHaveBeenLastCalledWith('https://instagram.com/iyalvi-profile', '_blank', 'noopener,noreferrer');
+  });
+
+  it('copies the page URL and announces success when native sharing is unavailable', async () => {
+    await mount();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    await act(async () => { centreElement<HTMLButtonElement>('[aria-label="Share post"]').click(); await Promise.resolve(); await Promise.resolve(); });
+    expect(writeText).toHaveBeenCalledWith(window.location.href);
+    expect(host.querySelector('[role="status"]')?.textContent).toBe('Link copied');
   });
 });

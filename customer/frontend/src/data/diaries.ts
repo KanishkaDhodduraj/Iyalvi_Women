@@ -1,4 +1,4 @@
-﻿export type Diary={displayName:string;caption:string;shopTo:'/sarees'|'/kurtis';focus?:string};
+﻿export type Diary={displayName:string;handle?:string;location?:string;caption:string;shopTo:'/sarees'|'/kurtis';focus?:string;likes?:number;comments?:number;postedLabel?:string;instagramUrl?:string};
 export const diaries:Diary[]=[
   {displayName:'Ilakkiya Senthil',caption:'A little colour made an ordinary afternoon feel special.',shopTo:'/sarees'},
   {displayName:'Madhumitha Raj',caption:'Soft cotton and a quiet moment to feel like myself.',shopTo:'/kurtis'},

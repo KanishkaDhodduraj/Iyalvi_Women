@@ -1,40 +1,77 @@
 #diaries.diary-section{background:var(--sandal);overflow:hidden}
 #diaries .section-heading{margin-bottom:22px}
 #diaries .diary-carousel{position:relative;width:100%;max-width:1240px;margin:0 auto}
-#diaries .diary-desktop-stage,#diaries .diary-mobile-stage{position:relative;width:100%;height:clamp(490px,42vw,560px);overflow:hidden;isolation:isolate}
-#diaries .diary-position-wrap{position:absolute;top:50%;width:clamp(180px,23vw,290px);aspect-ratio:3/4;transform-origin:center center;transition:transform .6s ease,opacity .6s ease;will-change:transform,opacity}
-#diaries .diary-card-position{position:relative;width:100%;height:100%;margin:0;border-radius:19px;cursor:pointer;outline:none}
-#diaries .diary-card-frame{position:absolute;inset:0;overflow:hidden;border:3px double #b18a45;border-radius:19px;padding:7px;background:#fffdf7;box-shadow:0 12px 28px #402b201e,inset 0 0 0 3px #fffdf7}
-#diaries .diary-card-photo{position:absolute;inset:9px;width:calc(100% - 18px);height:calc(100% - 18px);object-fit:cover;object-position:50% 0%;border-radius:11px}
-#diaries .diary-name-chip{position:absolute;top:16px;left:15px;display:flex;align-items:center;gap:7px;max-width:calc(100% - 66px);padding:4px 9px 4px 4px;border:1px solid #c6a765;border-radius:24px;background:#fffaf0ed;color:#4a3427;font:500 11px var(--sans);white-space:nowrap;box-shadow:0 2px 8px #24170d25}
-#diaries .diary-monogram{display:grid;place-items:center;flex:0 0 25px;width:25px;height:25px;border:1px solid #b18a45;border-radius:50%;background:#fffdf7;color:var(--maroon);font:600 10px var(--serif)}
-#diaries .diary-kolam{position:absolute;top:13px;right:13px;width:24px;height:24px;fill:none;stroke:#c39b4a;stroke-width:1.05;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 2px #fff9)}
-#diaries .diary-shop-link{position:absolute;right:14px;bottom:14px;display:inline-flex;align-items:center;gap:5px;padding:7px 10px;border:1px solid #c5a45f;border-radius:999px;background:#fffaf0f2;color:#553b2a;font:600 10px var(--sans);letter-spacing:.02em;box-shadow:0 3px 10px #24170d2e;transition:background .2s,color .2s}
-#diaries .diary-shop-link:hover{background:#fff;color:var(--maroon)}
+#diaries .diary-desktop-stage,#diaries .diary-mobile-stage{position:relative;width:100%;height:clamp(490px,calc(41.4vw + 65px),600px);overflow:hidden;isolation:isolate}
+#diaries .diary-position-wrap{position:absolute;top:50%;width:clamp(180px,23vw,290px);transform-origin:center center;transition:transform .6s ease,opacity .6s ease;will-change:transform,opacity}
+#diaries .diary-card-position{position:relative;width:100%;height:auto;margin:0;border-radius:19px;cursor:pointer;outline:none}
+#diaries .diary-card-frame{position:relative;display:flex;flex-direction:column;gap:0;overflow:hidden;border:3px double #b18a45;border-radius:19px;padding:8px 8px 24px;background:#fffdf7;box-shadow:0 12px 28px #402b201e,inset 0 0 0 3px #fffdf7}
+#diaries .diary-post-header{position:relative;display:flex;align-items:center;gap:7px;min-width:0;min-height:49px;padding:0 1px 7px}
+#diaries .diary-post-avatar{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;padding:2px;border-radius:50%;background:linear-gradient(135deg,#efd996,#a5762e 48%,#f6e7b5)}
+#diaries .diary-post-avatar span{display:grid;place-items:center;width:100%;height:100%;border-radius:50%;background:#fffdf7;color:var(--maroon);font:600 12px var(--serif)}
+#diaries .diary-post-identity{display:flex;flex:1;flex-direction:column;min-width:0;line-height:1.15;color:#3c3028;font:600 11px var(--sans)}
+#diaries .diary-post-identity b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+#diaries .diary-post-identity small{margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#81756b;font:400 9px var(--sans)}
+#diaries .diary-follow{flex:none;border:0;background:transparent;padding:6px 3px;color:#557d78;font:600 10px var(--sans);cursor:pointer}
+#diaries .diary-follow:hover{color:#365e59}
+#diaries .diary-more-button{display:grid;place-items:center;flex:0 0 30px;width:30px;height:32px;padding:0;border:0;border-radius:50%;background:transparent;color:#4d4035}
+#diaries .diary-more-button svg{width:20px;height:20px}
+#diaries .diary-post-menu{position:absolute;z-index:30;top:42px;right:0;display:grid;min-width:145px;padding:5px;border:1px solid #c9ad70;border-radius:9px;background:#fffdf7;box-shadow:0 8px 22px #2d201c25}
+#diaries .diary-post-menu a,#diaries .diary-post-menu button{display:block;width:100%;padding:9px 10px;border:0;border-radius:5px;background:transparent;color:#4b392d;text-align:left;font:500 11px var(--sans);cursor:pointer}
+#diaries .diary-post-menu a:hover,#diaries .diary-post-menu button:hover{background:#f4ecd9}
+#diaries .diary-photo-frame{position:relative;width:100%;aspect-ratio:4/5;overflow:hidden;border-radius:11px;background:#e9dfcf}
+#diaries .diary-card-photo{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;object-position:50% 0%;border-radius:inherit}
+#diaries .diary-post-controls{padding-top:3px}
+#diaries .diary-action-row{display:flex;align-items:center;justify-content:space-between;min-height:44px}
+#diaries .diary-action-group{display:flex;align-items:center}
+#diaries .diary-action-button{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;padding:0;border:0;border-radius:50%;background:transparent;color:#49372f;cursor:pointer}
+#diaries .diary-action-button svg{display:block;width:24px;height:24px}
+#diaries .diary-action-button:hover{color:var(--maroon)}
+#diaries .diary-action-button:disabled,#diaries .diary-follow[aria-disabled='true'],#diaries .diary-view-comments[aria-disabled='true'],#diaries .diary-more-button:disabled{cursor:default}
+#diaries .diary-like-button.is-liked{color:var(--maroon)}
+#diaries .diary-like-button.is-liked svg{animation:diary-heart-pop .28s ease-out}
+@keyframes diary-heart-pop{0%{transform:scale(.78)}65%{transform:scale(1.2)}100%{transform:scale(1)}}
+#diaries .diary-save-button[aria-pressed='true']{color:#9a712f}
+#diaries .diary-likes{margin:0 0 3px;color:#392c25;font:600 11px/1.35 var(--sans)}
+#diaries .diary-post-caption{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;margin:0 0 4px;color:#40322a;font:400 10px/1.35 var(--sans)}
+#diaries .diary-post-caption b{font-weight:700}
+#diaries .diary-more-text{color:#81756b}
+#diaries .diary-view-comments{display:block;margin:0 0 3px;padding:0;border:0;background:transparent;color:#81756b;text-align:left;font:400 9px/1.35 var(--sans);cursor:pointer}
+#diaries .diary-posted-label{margin:0;color:#9a8d80;font:500 8px/1.35 var(--sans);letter-spacing:.08em;text-transform:uppercase}
+#diaries .diary-kolam{position:absolute;right:5px;bottom:4px;width:16px;height:16px;fill:none;stroke:#c39b4a;stroke-width:1.05;stroke-linecap:round;stroke-linejoin:round}
 #diaries .diary-card-position:focus-visible{outline:3px solid #7d5420;outline-offset:5px}
+#diaries .diary-position-wrap:not([data-offset='0']) .diary-card-frame button{pointer-events:none}
 #diaries .diary-caption{position:absolute;top:calc(100% + 10px);left:0;width:100%;margin:0;padding:0 8px;color:var(--maroon);text-align:center;font:500 17px/1.2 var(--serif)}
 #diaries .diary-arrow{position:absolute;z-index:20;top:50%;display:grid;place-items:center;width:52px;height:52px;padding:0;border:1px solid #b18a45;border-radius:50%;background:#fffaf0;color:#84632e;box-shadow:0 5px 16px #38281c20;transform:translateY(-50%);transition:background .2s,box-shadow .2s}
 #diaries .diary-arrow:hover{background:#fff;color:var(--maroon);box-shadow:0 7px 20px #38281c2d}
-#diaries .diary-arrow:focus-visible,#diaries .diary-dots button:focus-visible{outline:3px solid #785225;outline-offset:4px}
+#diaries .diary-arrow:focus-visible,#diaries .diary-action-button:focus-visible,#diaries .diary-follow:focus-visible,#diaries .diary-more-button:focus-visible,#diaries .diary-view-comments:focus-visible,#diaries .diary-post-menu a:focus-visible,#diaries .diary-post-menu button:focus-visible,#diaries .diary-dots button:focus-visible{outline:3px solid #785225;outline-offset:3px}
 #diaries .diary-arrow-left{left:0}#diaries .diary-arrow-right{right:0}
 #diaries .diary-mobile-carousel{display:none}
 #diaries .diary-dots{display:flex;justify-content:center;gap:9px;margin:17px auto 0}
 #diaries .diary-dots button{width:9px;height:9px;padding:0;border:1px solid #a47c39;border-radius:50%;background:#fff9;transition:transform .2s,background .2s}
 #diaries .diary-dots button.selected{background:#9b7133;transform:scale(1.2)}
+#diaries .diary-toast{position:fixed;right:20px;bottom:24px;z-index:60;padding:10px 15px;border:1px solid #b18a45;border-radius:9px;background:#fffdf7;color:#4c392d;box-shadow:0 7px 22px #392a1e30;font:500 12px var(--sans)}
 @media(max-width:767px){
   #diaries .section-heading{margin-bottom:8px}
   #diaries .diary-desktop-stage,#diaries .diary-arrow{display:none}
   #diaries .diary-mobile-carousel{display:block;width:100%}
-  #diaries .diary-mobile-stage{height:clamp(440px,122vw,520px);overflow:hidden;touch-action:pan-y;cursor:grab}
+  #diaries .diary-mobile-stage{height:clamp(520px,145vw,600px);overflow:hidden;touch-action:pan-y;cursor:grab}
   #diaries .diary-mobile-stage:active{cursor:grabbing}
   #diaries .diary-position-wrap{width:min(78%,300px)}
   #diaries .diary-position-wrap[data-offset='-1'],#diaries .diary-position-wrap[data-offset='1']{opacity:.8}
-  #diaries .diary-card-frame,#diaries .diary-card-position{border-radius:17px}
-  #diaries .diary-name-chip{top:13px;left:12px;font-size:10px}
-  #diaries .diary-monogram{flex-basis:23px;width:23px;height:23px}
-  #diaries .diary-kolam{top:11px;right:11px;width:21px;height:21px}
-  #diaries .diary-shop-link{right:11px;bottom:11px;padding:6px 8px;font-size:9px}
+  #diaries .diary-card-frame{border-radius:17px}
+  #diaries .diary-post-avatar{flex-basis:31px;width:31px;height:31px}
+  #diaries .diary-post-header{min-height:45px}
+  #diaries .diary-post-identity{font-size:10px}
+  #diaries .diary-post-identity small{font-size:8px}
+  #diaries .diary-follow{font-size:9px}
+  #diaries .diary-action-button{flex-basis:44px;width:44px;height:44px}
+  #diaries .diary-action-button svg{width:24px;height:24px}
+  #diaries .diary-post-caption{font-size:10px}
+  #diaries .diary-view-comments{font-size:9px}
   #diaries .diary-caption{top:calc(100% + 8px);font-size:15px}
   #diaries .diary-dots{margin-top:8px}
 }
-@media(prefers-reduced-motion:reduce){#diaries .diary-position-wrap,#diaries .diary-shop-link,#diaries .diary-dots button,#diaries .diary-arrow{transition:none!important}}
+@media(prefers-reduced-motion:reduce){
+  #diaries .diary-position-wrap,#diaries .diary-dots button,#diaries .diary-arrow{transition:none!important}
+  #diaries .diary-like-button.is-liked svg{animation:none!important}
+}

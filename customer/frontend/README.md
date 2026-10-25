@@ -27,7 +27,7 @@ Banner files are discovered from `src/assets/banners/{home,sarees,kurtis}`. Pair
 
 ## Content to replace before launch
 
-- The five diary names and captions are temporary examples. Replace them with real customer stories only after each customer has given consent, before launch.
+- The five diary names and captions are placeholders to replace with real, consenting customers before launch. Never enter made-up engagement numbers.
 - Review names, review text, and the current review portraits.
 - Product names, descriptions, prices, availability, and catalogue photos.
 - Store contact details in the footer.
