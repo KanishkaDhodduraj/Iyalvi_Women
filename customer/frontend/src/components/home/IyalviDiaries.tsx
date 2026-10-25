@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type RefObject } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -7,15 +7,82 @@ import { DIARY_MOBILE_OFFSETS, DIARY_OFFSETS, diaries, getVisibleDiaryPositions,
 import { instagramProfileUrl } from '../../data/site';
 import '../../styles/diaryCarousel.css';
 
-export type FlyingHeart = { id: number; x: number; y: number; drift: number; rise: number; rotation: number; size: number; delay: number; duration: number; color: string; big?: boolean };
-export function createFlyingHeartBurst(x: number, y: number, firstId: number, random = Math.random): FlyingHeart[] {
-  const colors = ['#7b1835', '#b28a42', '#c86f82'];
+export type AmbientHeart = { id: number; x: number; y: number; drift: number; sway: number; rise: number; midRise: number; rotation: number; size: number; duration: number; color: string; outlined: boolean };
+export function createAmbientHeart(x: number, y: number, id: number, random = Math.random): AmbientHeart {
   const between = (min: number, max: number) => min + random() * (max - min);
-  return Array.from({ length: Math.round(between(8, 12)) }, (_, index) => ({ id: firstId + index, x, y, drift: between(-40, 40), rise: between(120, 220), rotation: between(-25, 25), size: between(12, 24), delay: between(0, 250), duration: between(1200, 1600), color: colors[Math.floor(random() * colors.length)] }));
+  const palette = ['#7b1835', '#c86f82', '#b28a42', '#fff8e9'];
+  const colorIndex = Math.floor(random() * palette.length);
+  const rise = between(160, 320);
+  return { id, x, y, drift: between(-50, 50), sway: between(-16, 16), rise, midRise: rise * 0.52, rotation: between(-25, 25), size: between(14, 28), duration: between(2000, 3200), color: palette[colorIndex], outlined: colorIndex === 3 };
 }
-export function limitLiveHearts(current: FlyingHeart[], additions: FlyingHeart[]) { return [...current, ...additions].slice(-40); }
-function HeartOverlay({ hearts, onEnd }: { hearts: FlyingHeart[]; onEnd: (id: number) => void }) {
-  return createPortal(<div className="diary-hearts-layer" aria-hidden="true">{hearts.map(heart => <svg key={heart.id} className={'diary-flying-heart' + (heart.big ? ' diary-big-heart' : '')} viewBox="0 0 24 24" onAnimationEnd={() => onEnd(heart.id)} style={{ left: heart.x, top: heart.y, '--drift': heart.drift + 'px', '--rise': heart.rise + 'px', '--turn': heart.rotation + 'deg', '--heart-size': heart.size + 'px', '--heart-delay': heart.delay + 'ms', '--heart-duration': heart.duration + 'ms', '--heart-color': heart.color } as CSSProperties}>{heart.big && <defs><linearGradient id="diary-heart-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="white"/><stop offset="100%" stopColor="#8b1838"/></linearGradient></defs>}<path d="M20.8 8.7c0 4.3-8.8 10-8.8 10s-8.8-5.7-8.8-10A4.7 4.7 0 0 1 12 6.4a4.7 4.7 0 0 1 8.8 2.3Z" fill={heart.big ? 'url(#diary-heart-gradient)' : 'currentColor'} stroke="white" strokeWidth=".8" /></svg>)}</div>, document.body);
+export function limitAmbientHearts(current: AmbientHeart[], next: AmbientHeart[]) { return [...current, ...next].slice(-30); }
+function HeartOverlay({ hearts, onEnd }: { hearts: AmbientHeart[]; onEnd: (id: number) => void }) {
+  return createPortal(<div className="diary-hearts-layer" aria-hidden="true">{hearts.map(heart => <FloatingHeart key={heart.id} heart={heart} onEnd={onEnd} />)}</div>, document.body);
+}
+function FloatingHeart({ heart, onEnd }: { heart: AmbientHeart; onEnd: (id: number) => void }) {
+  const heartRef = useRef<SVGSVGElement>(null);
+  useEffect(() => { const node = heartRef.current; const finish = () => onEnd(heart.id); node?.addEventListener('animationend', finish); return () => node?.removeEventListener('animationend', finish); }, [heart.id, onEnd]);
+  return <svg ref={heartRef} className={'diary-floating-heart' + (heart.outlined ? ' is-outlined' : '')} viewBox="0 0 24 24" style={{ left: heart.x, top: heart.y, '--drift': heart.drift + 'px', '--sway': heart.sway + 'px', '--rise': heart.rise + 'px', '--mid-rise': heart.midRise + 'px', '--turn': heart.rotation + 'deg', '--heart-size': heart.size + 'px', '--heart-duration': heart.duration + 'ms', '--heart-color': heart.color } as CSSProperties}><path d="M20.8 8.7c0 4.3-8.8 10-8.8 10s-8.8-5.7-8.8-10A4.7 4.7 0 0 1 12 6.4a4.7 4.7 0 0 1 8.8 2.3Z" fill="currentColor" stroke={heart.outlined ? '#b28a42' : 'white'} strokeWidth="1.2" /></svg>;
+}
+
+function useAmbientHearts(sectionRef: RefObject<HTMLElement | null>, anchorRef: RefObject<HTMLElement | null>, reducedMotion: boolean) {
+  const [hearts, setHearts] = useState<AmbientHeart[]>([]);
+  const heartsRef = useRef<AmbientHeart[]>([]);
+  const nextId = useRef(0);
+  const removeHeart = useCallback((id: number) => {
+    heartsRef.current = heartsRef.current.filter(heart => heart.id !== id);
+    setHearts(heartsRef.current);
+  }, []);
+  useEffect(() => { if (reducedMotion) { heartsRef.current = []; setHearts([]); } }, [reducedMotion]);
+  useEffect(() => {
+    if (reducedMotion || !sectionRef.current || !anchorRef.current || typeof IntersectionObserver === 'undefined') return;
+    let inView = false;
+    let tabVisible = document.visibilityState !== 'hidden';
+    let burstPlayed = false;
+    let timer = 0;
+    let anchorRect = anchorRef.current.getBoundingClientRect();
+    const updateRect = () => { if (anchorRef.current) anchorRect = anchorRef.current.getBoundingClientRect(); };
+    const spawn = (burst = false) => {
+      if (!tabVisible || !inView || !anchorRect.width || !anchorRect.height) return;
+      const count = burst ? 6 : 1;
+      const batch = Array.from({ length: count }, () => {
+        const side = Math.random() < 0.22;
+        const xRatio = side ? (Math.random() < 0.5 ? 0.2 + Math.random() * 0.16 : 0.64 + Math.random() * 0.16) : 0.39 + Math.random() * 0.22;
+        const x = anchorRect.left + anchorRect.width * xRatio;
+        const y = anchorRect.top + anchorRect.height * (0.68 + Math.random() * 0.2);
+        return createAmbientHeart(x, y, nextId.current++);
+      });
+      heartsRef.current = limitAmbientHearts(heartsRef.current, batch);
+      setHearts(heartsRef.current);
+    };
+    const schedule = () => {
+      window.clearTimeout(timer);
+      if (!inView || !tabVisible) return;
+      timer = window.setTimeout(() => { spawn(); schedule(); }, 250 + Math.random() * 350);
+    };
+    const observer = new IntersectionObserver(entries => {
+      const entry = entries[0];
+      inView = Boolean(entry?.isIntersecting && entry.intersectionRatio >= 0.3);
+      updateRect();
+      if (inView && tabVisible) {
+        if (!burstPlayed) { burstPlayed = true; spawn(true); }
+        schedule();
+      } else window.clearTimeout(timer);
+    }, { threshold: [0, 0.3] });
+    observer.observe(sectionRef.current);
+    const onVisibilityChange = () => {
+      tabVisible = document.visibilityState !== 'hidden';
+      if (tabVisible && inView) schedule();
+      else { window.clearTimeout(timer); heartsRef.current = []; setHearts([]); }
+    };
+    window.addEventListener('scroll', updateRect, { passive: true });
+    window.addEventListener('resize', updateRect);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    const resizeObserver = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(updateRect);
+    if (resizeObserver && anchorRef.current) resizeObserver.observe(anchorRef.current);
+    return () => { window.clearTimeout(timer); observer.disconnect(); resizeObserver?.disconnect(); window.removeEventListener('scroll', updateRect); window.removeEventListener('resize', updateRect); document.removeEventListener('visibilitychange', onVisibilityChange); heartsRef.current = []; };
+  }, [anchorRef, reducedMotion, sectionRef]);
+  return { hearts, removeHeart };
 }
 
 type DiaryImage = { url: string };
@@ -61,7 +128,7 @@ async function copyLink(value: string) {
 
 export function DiaryPostCard({ diary, image, offset, isActive, liked, bookmarked, following, menuOpen, profileUrl, onSelect, onKeyDown, onLike, onPhotoLike, onBookmark, onFollow, onComment, onShare, onToggleMenu, onCopy, onCloseMenu }: {
   diary: Diary; image: DiaryImage; offset: number; isActive: boolean; liked: boolean; bookmarked: boolean; following: boolean; menuOpen: boolean; profileUrl: string;
-  onSelect: () => void; onKeyDown: (event: KeyboardEvent<HTMLElement>) => void; onLike: (element: HTMLElement) => void; onPhotoLike: (x: number, y: number) => void; onBookmark: () => void; onFollow: () => void;
+  onSelect: () => void; onKeyDown: (event: KeyboardEvent<HTMLElement>) => void; onLike: () => void; onPhotoLike: (x: number, y: number) => void; onBookmark: () => void; onFollow: () => void;
   onComment: () => void; onShare: () => void; onToggleMenu: () => void; onCopy: () => void; onCloseMenu: () => void;
 }) {
   const tapRef = useRef<{ at: number; x: number; y: number; timer?: number }>({ at: 0, x: 0, y: 0 });
@@ -85,7 +152,7 @@ export function DiaryPostCard({ diary, image, offset, isActive, liked, bookmarke
       <div className="diary-post-controls">
         <div className="diary-action-row">
           <div className="diary-action-group">
-            <button type="button" className={'diary-action-button diary-like-button' + (liked ? ' is-liked' : '')} aria-label={'Like post by ' + diary.displayName} aria-pressed={liked} onClick={event => onLike(event.currentTarget)}><Icon kind="heart" filled={liked} /></button>
+            <button type="button" className={'diary-action-button diary-like-button' + (liked ? ' is-liked' : '')} aria-label={'Like post by ' + diary.displayName} aria-pressed={liked} onClick={onLike}><Icon kind="heart" filled={liked} /></button>
             <button type="button" className="diary-action-button" aria-label="Open comments" disabled={!isActive || !commentUrl} tabIndex={isActive && commentUrl ? 0 : -1} onClick={onComment}><Icon kind="comment" /></button>
             <button type="button" className="diary-action-button" aria-label="Share post" disabled={!isActive} tabIndex={isActive ? 0 : -1} onClick={onShare}><Icon kind="share" /></button>
           </div>
@@ -103,13 +170,12 @@ export function DiaryPostCard({ diary, image, offset, isActive, liked, bookmarke
 
 function Position({ image, diary, offset, scale, opacity, activeIndex, setActiveIndex, navigate, left, liked, bookmarked, following, menuOpen, profileUrl, onLike, onPhotoLike, onBookmark, onFollow, onComment, onShare, onToggleMenu, onCopy, onCloseMenu }: {
   image: DiaryImage; diary: Diary; offset: number; scale: number; opacity: number; activeIndex: number; setActiveIndex: (index: number) => void; navigate: (to: string) => void; left: string;
-  liked: boolean; bookmarked: boolean; following: boolean; menuOpen: boolean; profileUrl: string; onLike: (element: HTMLElement) => void; onPhotoLike: (x: number, y: number) => void; onBookmark: () => void; onFollow: () => void; onComment: () => void; onShare: () => void; onToggleMenu: () => void; onCopy: () => void; onCloseMenu: () => void;
+  liked: boolean; bookmarked: boolean; following: boolean; menuOpen: boolean; profileUrl: string; onLike: () => void; onPhotoLike: (x: number, y: number) => void; onBookmark: () => void; onFollow: () => void; onComment: () => void; onShare: () => void; onToggleMenu: () => void; onCopy: () => void; onCloseMenu: () => void;
 }) {
   const handleKey = (event: KeyboardEvent<HTMLElement>) => { if ((event.key !== 'Enter' && event.key !== ' ') || (event.target as HTMLElement).closest('button,a,[role="button"]')) return; event.preventDefault(); const selected = wrapDiaryIndex(activeIndex + offset, diaryImages.length); if (offset === 0) navigate(diary.shopTo); else setActiveIndex(selected); };
   return <div className="diary-position-wrap" data-offset={offset} style={{ left, opacity, zIndex: 10 - Math.abs(offset), transform: 'translate(-50%, -50%) scale(' + scale + ')' }}>
     <DiaryPostCard image={image} diary={diary} offset={offset} isActive={offset === 0} liked={liked} bookmarked={bookmarked} following={following} menuOpen={menuOpen} profileUrl={profileUrl}
       onKeyDown={handleKey} onSelect={() => { if (offset !== 0) setActiveIndex(wrapDiaryIndex(activeIndex + offset, diaryImages.length)); }} onLike={onLike} onPhotoLike={onPhotoLike} onBookmark={onBookmark} onFollow={onFollow} onComment={onComment} onShare={onShare} onToggleMenu={onToggleMenu} onCopy={onCopy} onCloseMenu={onCloseMenu} />
-    {offset === 0 && <p className="diary-caption">{diary.caption}</p>}
   </div>;
 }
 
@@ -120,13 +186,13 @@ function DesktopCarousel(props: CarouselProps) {
   return <div className="diary-desktop-stage" aria-label="Customer style carousel">{positions.map((position, i) => <CarouselPosition key={position.offset} {...props} position={position} scale={scales[i]} opacity={opacities[i]} left={left[position.offset]} />)}</div>;
 }
 
-type CarouselProps = { images: DiaryImage[]; activeIndex: number; setActiveIndex: (index: number) => void; navigate: (to: string) => void; liked: Record<number, boolean>; bookmarked: Record<number, boolean>; following: Record<number, boolean>; menuIndex: number | null; profileUrl: string; onLike: (index: number, element: HTMLElement) => void; onPhotoLike: (index: number, x: number, y: number) => void; onBookmark: (index: number) => void; onFollow: (index: number) => void; onComment: (diary: Diary) => void; onShare: (diary: Diary) => void; onToggleMenu: (index: number) => void; onCopy: (diary: Diary) => void; onCloseMenu: () => void };
+type CarouselProps = { images: DiaryImage[]; activeIndex: number; setActiveIndex: (index: number) => void; navigate: (to: string) => void; liked: Record<number, boolean>; bookmarked: Record<number, boolean>; following: Record<number, boolean>; menuIndex: number | null; profileUrl: string; onLike: (index: number) => void; onPhotoLike: (index: number, x: number, y: number) => void; onBookmark: (index: number) => void; onFollow: (index: number) => void; onComment: (diary: Diary) => void; onShare: (diary: Diary) => void; onToggleMenu: (index: number) => void; onCopy: (diary: Diary) => void; onCloseMenu: () => void };
 type PositionData = { offset: number; index: number };
 function CarouselPosition({ images, activeIndex, setActiveIndex, navigate, liked, bookmarked, following, menuIndex, profileUrl, onLike, onPhotoLike, onBookmark, onFollow, onComment, onShare, onToggleMenu, onCopy, onCloseMenu, position, scale, opacity, left }: CarouselProps & { position: PositionData; scale: number; opacity: number; left: string }) {
   const diary = diaries[position.index % diaries.length];
   return <Position image={images[position.index]} diary={diary} offset={position.offset} scale={scale} opacity={opacity} activeIndex={activeIndex} setActiveIndex={setActiveIndex} navigate={navigate} left={left}
     liked={Boolean(liked[position.index])} bookmarked={Boolean(bookmarked[position.index])} following={Boolean(following[position.index])} menuOpen={menuIndex === position.index} profileUrl={profileUrl}
-    onLike={element => onLike(position.index, element)} onPhotoLike={(x, y) => onPhotoLike(position.index, x, y)} onBookmark={() => onBookmark(position.index)} onFollow={() => onFollow(position.index)} onComment={() => onComment(diary)} onShare={() => onShare(diary)} onToggleMenu={() => onToggleMenu(position.index)} onCopy={() => onCopy(diary)} onCloseMenu={onCloseMenu} />;
+    onLike={() => onLike(position.index)} onPhotoLike={(x, y) => onPhotoLike(position.index, x, y)} onBookmark={() => onBookmark(position.index)} onFollow={() => onFollow(position.index)} onComment={() => onComment(diary)} onShare={() => onShare(diary)} onToggleMenu={() => onToggleMenu(position.index)} onCopy={() => onCopy(diary)} onCloseMenu={onCloseMenu} />;
 }
 
 function MobileCarousel({ ...props }: CarouselProps & { pauseForInteraction: () => void }) {
@@ -141,35 +207,34 @@ function MobileCarousel({ ...props }: CarouselProps & { pauseForInteraction: () 
 
 export function IyalviDiaries() {
   const navigate = useNavigate(); const images = diaryImages; const count = images.length;
+  const sectionRef = useRef<HTMLElement>(null); const ambientAnchorRef = useRef<HTMLDivElement>(null);
   const [liked, setLiked] = useState<Record<number, boolean>>({}); const [bookmarked, setBookmarked] = useState<Record<number, boolean>>({}); const [following, setFollowing] = useState<Record<number, boolean>>({});
-  const [hearts, setHearts] = useState<FlyingHeart[]>([]); const heartId = useRef(0); const heartTimers = useRef(new Map<number, number>());
   const [menuIndex, setMenuIndex] = useState<number | null>(null); const [toast, setToast] = useState('');
   const toastTimer = useRef<number | undefined>(undefined);
   const reducedMotion = useReducedMotion();
-  const carousel = useCarouselState(count, menuIndex !== null || Boolean(toast) || hearts.length > 0);
+  const ambient = useAmbientHearts(sectionRef, ambientAnchorRef, reducedMotion);
+  const carousel = useCarouselState(count, menuIndex !== null || Boolean(toast));
   const setActiveIndex = (index: number) => { setMenuIndex(null); carousel.setActiveIndex(wrapDiaryIndex(index, count)); };
   const showToast = (message: string) => { setToast(message); window.clearTimeout(toastTimer.current); toastTimer.current = window.setTimeout(() => setToast(''), 2400); carousel.pauseForInteraction(); };
   const closeMenu = () => setMenuIndex(null);
   const openExternal = (url: string) => { if (url) window.open(url, '_blank', 'noopener,noreferrer'); };
   const onFollow = (index: number) => { const next = !following[index]; if (next && instagramProfileUrl) openExternal(instagramProfileUrl); setFollowing(current => ({ ...current, [index]: !current[index] })); carousel.pauseForInteraction(); };
-  const appendHearts = (items: FlyingHeart[]) => { setHearts(current => { const next = limitLiveHearts(current, items); const keep = new Set(next.map(item => item.id)); for (const [id, timer] of heartTimers.current) if (!keep.has(id)) { window.clearTimeout(timer); heartTimers.current.delete(id); } return next; }); for (const heart of items) heartTimers.current.set(heart.id, window.setTimeout(() => setHearts(current => current.filter(item => item.id !== heart.id)), heart.duration + heart.delay + 100)); };
-  const onLike = (index: number, element: HTMLElement) => { const turningOn = !liked[index]; setLiked(current => ({ ...current, [index]: !current[index] })); carousel.pauseForInteraction(); if (turningOn && !reducedMotion) { const rect = element.getBoundingClientRect(); const origin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; const burst = createFlyingHeartBurst(origin.x, origin.y, heartId.current); heartId.current += burst.length; appendHearts(burst); } };
-  const onPhotoLike = (index: number, x: number, y: number) => { setActiveIndex(index); setLiked(current => ({ ...current, [index]: true })); carousel.pauseForInteraction(); if (!reducedMotion) { const id = heartId.current++; appendHearts([{ id, x, y, drift: 0, rise: 0, rotation: 0, size: 82, delay: 0, duration: 800, color: '#8b1838', big: true }]); } };
+  const onLike = (index: number) => { setLiked(current => ({ ...current, [index]: !current[index] })); carousel.pauseForInteraction(); };
+  const onPhotoLike = (index: number, _x: number, _y: number) => { setActiveIndex(index); setLiked(current => ({ ...current, [index]: true })); carousel.pauseForInteraction(); };
   const onComment = (diary: Diary) => openExternal(diary.instagramUrl || instagramProfileUrl);
   const onCopy = async (diary: Diary) => { try { await copyLink(diary.instagramUrl || window.location.href); showToast('Link copied'); } catch { showToast('Link copied'); } closeMenu(); };
   const onShare = async (diary: Diary) => { const url = diary.instagramUrl || window.location.href; if (typeof navigator.share === 'function') { try { await navigator.share({ title: diary.displayName, text: diary.caption, url }); } catch { /* A dismissed share sheet is not an error. */ } } else { try { await copyLink(window.location.href); } catch { /* Keep the local confirmation available when clipboard access is restricted. */ } showToast('Link copied'); } };
-  useEffect(() => () => { window.clearTimeout(toastTimer.current); for (const timer of heartTimers.current.values()) window.clearTimeout(timer); }, []);
-  const removeHeart = (id: number) => { window.clearTimeout(heartTimers.current.get(id)); heartTimers.current.delete(id); setHearts(current => current.filter(heart => heart.id !== id)); };
+  useEffect(() => () => { window.clearTimeout(toastTimer.current); }, []);
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => { if (event.key === 'Escape' && menuIndex !== null) { event.preventDefault(); closeMenu(); } else if (event.key === 'ArrowLeft') { event.preventDefault(); carousel.move(-1); } else if (event.key === 'ArrowRight') { event.preventDefault(); carousel.move(1); } };
   const props: CarouselProps = { images, activeIndex: carousel.activeIndex, setActiveIndex, navigate, liked, bookmarked, following, menuIndex, profileUrl: instagramProfileUrl, onLike, onPhotoLike, onBookmark: index => setBookmarked(current => ({ ...current, [index]: !current[index] })), onFollow, onComment, onShare, onToggleMenu: index => setMenuIndex(current => current === index ? null : index), onCopy, onCloseMenu: closeMenu };
   if (!count) return <section className="section diary-section" id="diaries"><div className="container"><SectionHeading eyebrow="From our community" title="Iyalvi Diaries" copy="Real looks. Real women. Shop them." /></div></section>;
-  return <section className="section diary-section" id="diaries" aria-label="Iyalvi Diaries" onPointerEnter={() => carousel.setHovered(true)} onPointerLeave={() => { carousel.setHovered(false); carousel.pauseForInteraction(); }} onMouseEnter={() => carousel.setHovered(true)} onMouseLeave={() => { carousel.setHovered(false); carousel.pauseForInteraction(); }} onTouchStart={carousel.pauseForInteraction} onFocusCapture={() => carousel.setFocused(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) { carousel.setFocused(false); carousel.pauseForInteraction(); } }} onKeyDown={handleKeyDown}>
+  return <section ref={sectionRef} className="section diary-section" id="diaries" aria-label="Iyalvi Diaries" onPointerEnter={() => carousel.setHovered(true)} onPointerLeave={() => { carousel.setHovered(false); carousel.pauseForInteraction(); }} onMouseEnter={() => carousel.setHovered(true)} onMouseLeave={() => { carousel.setHovered(false); carousel.pauseForInteraction(); }} onTouchStart={carousel.pauseForInteraction} onFocusCapture={() => carousel.setFocused(true)} onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) { carousel.setFocused(false); carousel.pauseForInteraction(); } }} onKeyDown={handleKeyDown}>
     <div className="container"><SectionHeading eyebrow="From our community" title="Iyalvi Diaries" copy="Real looks. Real women. Shop them." />
-      <div className="diary-carousel"><button type="button" className="diary-arrow diary-arrow-left" aria-label="Previous diary story" onClick={() => carousel.move(-1)}><ChevronLeft size={22} strokeWidth={1.5} /></button>
+      <div ref={ambientAnchorRef} className="diary-carousel"><button type="button" className="diary-arrow diary-arrow-left" aria-label="Previous diary story" onClick={() => carousel.move(-1)}><ChevronLeft size={22} strokeWidth={1.5} /></button>
         <DesktopCarousel {...props} />
         <MobileCarousel {...props} pauseForInteraction={carousel.pauseForInteraction} />
         <button type="button" className="diary-arrow diary-arrow-right" aria-label="Next diary story" onClick={() => carousel.move(1)}><ChevronRight size={22} strokeWidth={1.5} /></button></div>
       {toast && <div className="diary-toast" role="status" aria-live="polite">{toast}</div>}
-      {hearts.length > 0 && <HeartOverlay hearts={hearts} onEnd={removeHeart} />}
+      {ambient.hearts.length > 0 && <HeartOverlay hearts={ambient.hearts} onEnd={ambient.removeHeart} />}
     </div></section>;
 }

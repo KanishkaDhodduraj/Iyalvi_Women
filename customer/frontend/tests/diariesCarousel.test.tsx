@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IyalviDiaries } from '../src/components/home/IyalviDiaries';
-import { createFlyingHeartBurst, limitLiveHearts } from '../src/components/home/IyalviDiaries';
+import { createAmbientHeart, limitAmbientHearts } from '../src/components/home/IyalviDiaries';
 import { DIARY_OFFSETS, getVisibleDiaryPositions, wrapDiaryIndex } from '../src/data/diaries';
 
 const siteMock = vi.hoisted(() => ({ profileUrl: 'https://instagram.com/iyalvi-profile' }));
@@ -13,6 +13,7 @@ vi.mock('../src/data/diaries', async importOriginal => {
   const actual = await importOriginal<typeof import('../src/data/diaries')>();
   return { ...actual, diaries: actual.diaries.map((diary, index) => index === 0 ? { ...diary, likes: 1574, comments: 8, postedLabel: '2 DAYS AGO', instagramUrl: 'https://instagram.com/p/iyalvi-look' } : diary) };
 });
+let revealDiaries: ((ratio: number) => void) | undefined;
 
 function LocationProbe() {
   const location = useLocation();
@@ -50,6 +51,15 @@ describe('Iyalvi Diaries interaction', () => {
     siteMock.profileUrl = 'https://instagram.com/iyalvi-profile';
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('prefers-reduced-motion') ? false : false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }));
+    revealDiaries = undefined;
+    vi.stubGlobal('IntersectionObserver', class {
+      root = null; rootMargin = ''; thresholds = [0, 0.3];
+      constructor(private callback: IntersectionObserverCallback) { revealDiaries = ratio => this.callback([{ isIntersecting: ratio >= 0.3, intersectionRatio: ratio, target: document.querySelector('.diary-section')! } as IntersectionObserverEntry], this as unknown as IntersectionObserver); }
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+      takeRecords() { return []; }
+    });
     clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
     host = document.createElement('div');
     document.body.appendChild(host);
@@ -172,18 +182,21 @@ describe('Iyalvi Diaries interaction', () => {
     expect(open).not.toHaveBeenCalled();
   });
 
-  it('creates a bounded heart burst and cleans flying heart nodes after animation', async () => {
-    const burst = createFlyingHeartBurst(10, 20, 1, () => 0.5);
-    expect(burst.length).toBeGreaterThanOrEqual(8);
-    expect(burst.length).toBeLessThanOrEqual(12);
-    expect(limitLiveHearts([], Array.from({ length: 50 }, (_, i) => ({ ...burst[0], id: i })))).toHaveLength(40);
+  it('floats ambient hearts while visible, caps memory at 30, and cleans on animation end', async () => {
+    const sample = createAmbientHeart(10, 20, 1, () => 0.5);
+    expect(sample.rise).toBe(240);
+    expect(sample.duration).toBe(2600);
+    expect(limitAmbientHearts([], Array.from({ length: 50 }, (_, i) => ({ ...sample, id: i })))).toHaveLength(30);
     await mount();
-    act(() => centreElement<HTMLButtonElement>('.diary-like-button').click());
-    const flying = document.body.querySelectorAll('.diary-flying-heart');
-    expect(flying.length).toBeGreaterThanOrEqual(8);
-    expect(flying.length).toBeLessThanOrEqual(12);
-    act(() => vi.advanceTimersByTime(2000));
-    expect(document.body.querySelectorAll('.diary-flying-heart')).toHaveLength(0);
+    vi.spyOn(host.querySelector('.diary-carousel')!, 'getBoundingClientRect').mockReturnValue({ left: 0, top: 0, width: 1000, height: 600, right: 1000, bottom: 600, x: 0, y: 0, toJSON: () => ({}) });
+    act(() => window.dispatchEvent(new Event('scroll')));
+    act(() => revealDiaries?.(0.3));
+    expect(document.body.querySelectorAll('.diary-floating-heart')).toHaveLength(6);
+    act(() => vi.advanceTimersByTime(300000));
+    expect(document.body.querySelectorAll('.diary-floating-heart').length).toBeLessThanOrEqual(30);
+    const remaining = [...document.body.querySelectorAll('.diary-floating-heart')];
+    act(() => remaining.forEach(heart => heart.dispatchEvent(new Event('animationend', { bubbles: true }))));
+    expect(document.body.querySelectorAll('.diary-floating-heart')).toHaveLength(0);
   });
 
   it('double clicking a side photo centres and likes it without toggling off', async () => {
@@ -197,7 +210,7 @@ describe('Iyalvi Diaries interaction', () => {
     expect(centreElement('.diary-like-button')?.getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('does not create flying hearts when reduced motion is enabled', async () => {
+  it('does not create ambient hearts when reduced motion is enabled', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('prefers-reduced-motion'), media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }));
     await mount();
     act(() => centreElement<HTMLButtonElement>('.diary-like-button').click());
